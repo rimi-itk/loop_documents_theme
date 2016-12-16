@@ -22,6 +22,8 @@ function loop_documents_theme_preprocess_page(&$variables) {
  * Implements hook_preprocess_node().
  */
 function loop_documents_theme_preprocess_node(&$variables) {
+  global $user;
+
   if (!isset($variables['node'])) {
     return;
   }
@@ -64,7 +66,10 @@ function loop_documents_theme_preprocess_node(&$variables) {
         loop_documents_add_query_to_menu($menu, $query);
         $root = node_load($collection_id);
         if ($root) {
-          $menu['#title'] = $root->title;
+          $menu['#root'] = $root;
+          if (node_access('update', $root, $user) === TRUE) {
+            $menu['#root_edit_link'] = l(t('Edit document collection'), 'node/' . $root->nid . '/edit');
+          }
         }
         $variables['loop_documents_menu'] = $menu;
       }
