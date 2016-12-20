@@ -48,7 +48,7 @@ function loop_documents_theme_preprocess_node(&$variables) {
   }
 
   if (!$collection_id) {
-    $menus = loop_documents_get_menus($node);
+    $menus = loop_documents_theme_get_menus($node);
 
     if (count($menus) === 1) {
       $collection_id = array_keys($menus)[0];
@@ -56,14 +56,14 @@ function loop_documents_theme_preprocess_node(&$variables) {
   }
 
   if ($collection_id) {
-    $menu_name = loop_documents_get_menu_name($collection_id);
+    $menu_name = loop_documents_theme_get_menu_name($collection_id);
     if ($menu_name) {
       $menu = menu_tree($menu_name);
       if ($menu) {
         $query = array(
           'collection' => $collection_id,
         );
-        loop_documents_add_query_to_menu($menu, $query);
+        loop_documents_theme_add_query_to_menu($menu, $query);
         $root = node_load($collection_id);
         if ($root) {
           $menu['#root'] = $root;
@@ -89,12 +89,12 @@ function loop_documents_theme_preprocess_node(&$variables) {
  * @return string|null
  *   The menu name.
  */
-function loop_documents_get_menu_name($node) {
+function loop_documents_theme_get_menu_name($node) {
   if (is_numeric($node)) {
     $node = node_load($node);
   }
-  if ($node && isset($node->field_loop_documents_contents[LANGUAGE_NONE][0]['menureference'])) {
-    return $node->field_loop_documents_contents[LANGUAGE_NONE][0]['menureference'];
+  if ($node && function_exists('loop_documents_get_menu_name')) {
+    return loop_documents_get_menu_name($node);
   }
 
   return NULL;
@@ -109,13 +109,19 @@ function loop_documents_get_menu_name($node) {
  * @return array
  *   The menu.
  */
-function loop_documents_get_menus($node) {
+function loop_documents_theme_get_menus($node) {
+  if (function_exists('loop_documents_get_menu_name')) {
+    $menu_name = loop_documents_get_menu_name($node);
+  }
   $menus = array();
 
-  $query = db_query('select entity_id from {field_data_field_loop_documents_contents} where field_loop_documents_contents_menureference in (select menu_name from menu_links  where link_path = :link_path)', array('link_path' => 'node/' . $node->nid));
-  $roots = node_load_multiple($query->fetchCol());
+  $query = db_query('select menu_name from menu_links where link_path = :link_path', array('link_path' => 'node/' . $node->nid));
+  $nids = array_map(function ($name) {
+    return preg_match('/^loop-documents-collection-(?<id>[0-9]+)$/', $name, $matches) ? $matches['id'] : 0;
+  }, $query->fetchCol());
+  $roots = node_load_multiple($nids);
   foreach ($roots as $root) {
-    $menu_name = loop_documents_get_menu_name($root);
+    $menu_name = loop_documents_theme_get_menu_name($root);
     $menus[$root->nid] = array(
       '#theme' => 'menu_link__' . str_replace('-', '_', $menu_name),
       '#attributes' => array(),
@@ -141,10 +147,10 @@ function loop_documents_get_menus($node) {
  * @param array $query
  *   The query.
  */
-function loop_documents_add_query_to_menu(array &$menu, array $query) {
+function loop_documents_theme_add_query_to_menu(array &$menu, array $query) {
   foreach ($menu as &$item) {
     if (isset($item['#href'])) {
-      loop_documents_add_query_to_menu_item($item, $query);
+      loop_documents_theme_add_query_to_menu_item($item, $query);
     }
   }
 }
@@ -157,7 +163,7 @@ function loop_documents_add_query_to_menu(array &$menu, array $query) {
  * @param array $query
  *   The query.
  */
-function loop_documents_add_query_to_menu_item(array &$item, array $query) {
+function loop_documents_theme_add_query_to_menu_item(array &$item, array $query) {
   if (isset($item['#href'])) {
     if (!isset($item['#localized_options'])) {
       $item['#localized_options'] = array();
@@ -165,6 +171,6 @@ function loop_documents_add_query_to_menu_item(array &$item, array $query) {
     $item['#localized_options'] += array('query' => $query);
   }
   if (isset($item['#below'])) {
-    loop_documents_add_query_to_menu($item['#below'], $query);
+    loop_documents_theme_add_query_to_menu($item['#below'], $query);
   }
 }
